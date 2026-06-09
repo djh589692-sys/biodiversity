@@ -47,7 +47,3 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Data
-
-*.csv
-*.json
