@@ -50,8 +50,8 @@ QUICK_QUESTIONS = [
     "🦏 犀牛角为什么引来偷猎危机？",
 ]
 
-def _call_api(messages: list, api_key: str, base_url: str, model: str) -> str:
-    """通用 API 调用（支持 OpenAI 兼容接口）"""
+def _call_api_stream(messages: list, api_key: str, base_url: str, model: str):
+    """流式 API 调用（支持 OpenAI 兼容接口）"""
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
@@ -61,7 +61,7 @@ def _call_api(messages: list, api_key: str, base_url: str, model: str) -> str:
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
         "temperature": 0.75,
         "max_tokens": 800,
-        "stream": False,
+        "stream": True,
     }
     try:
         resp = requests.post(
@@ -69,21 +69,36 @@ def _call_api(messages: list, api_key: str, base_url: str, model: str) -> str:
             headers=headers,
             json=payload,
             timeout=30,
+            stream=True,
         )
         resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        
+        for line in resp.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data: '):
+                    line = line[6:]
+                    if line == '[DONE]':
+                        break
+                    try:
+                        data = json.loads(line)
+                        content = data["choices"][0]["delta"].get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        continue
     except requests.exceptions.Timeout:
-        return "⏳ 请求超时，请检查网络后重试。"
+        yield "⏳ 请求超时，请检查网络后重试。"
     except requests.exceptions.ConnectionError:
-        return "🌐 连接失败，请检查 Base URL 是否正确。"
+        yield "🌐 连接失败，请检查 Base URL 是否正确。"
     except Exception as e:
         err = str(e)
         if "401" in err or "authentication" in err.lower():
-            return "🔑 API 认证失败，请在侧边栏检查 API Key。"
+            yield "🔑 API 认证失败，请在侧边栏检查 API Key。"
         elif "429" in err or "rate_limit" in err.lower():
-            return "⏳ 请求频率过高，请稍后再试。"
-        return f"❌ 请求失败：{err[:200]}"
+            yield "⏳ 请求频率过高，请稍后再试。"
+        else:
+            yield f"❌ 请求失败：{err[:200]}"
 
 
 def _build_region_context(region_name: str) -> str:
@@ -148,8 +163,8 @@ def render_ai_guide():
     if "ai_guide_messages" not in st.session_state:
         st.session_state["ai_guide_messages"] = []
 
-    # ── 快速提问按钮 ────────────────────────────────────
-    if not st.session_state["ai_guide_messages"]:
+    # ── 快速提问按钮（固定在顶部）───────────────────────
+    with st.container(border=True):
         st.markdown("**💡 快速提问（点击即发送）**")
         cols = st.columns(2)
         for i, q in enumerate(QUICK_QUESTIONS):
@@ -160,7 +175,8 @@ def render_ai_guide():
                     )
                     st.session_state["ai_pending"] = True
                     st.rerun()
-        st.markdown("---")
+
+    st.markdown("---")
 
     # ── 渲染历史消息 ────────────────────────────────────
     for msg in st.session_state["ai_guide_messages"]:
@@ -189,7 +205,7 @@ def render_ai_guide():
 
 
 def _process_ai_response(api_key, base_url, model, context_region):
-    """调用 AI 并追加回复"""
+    """调用 AI 并追加回复（流式显示）"""
     if not api_key:
         reply = "🔑 请先在侧边栏填写 API Key 才能开始对话！"
         st.session_state["ai_guide_messages"].append(
@@ -213,9 +229,13 @@ def _process_ai_response(api_key, base_url, model, context_region):
             messages.append({"role": m["role"], "content": m["content"]})
 
     with st.chat_message("assistant", avatar="🌿"):
-        with st.spinner("绿野正在思考中...🌿"):
-            reply = _call_api(messages, api_key, base_url, model)
-        st.markdown(reply)
+        # 使用流式显示
+        reply = ""
+        message_placeholder = st.empty()
+        
+        for chunk in _call_api_stream(messages, api_key, base_url, model):
+            reply += chunk
+            message_placeholder.markdown(reply)
 
     st.session_state["ai_guide_messages"].append(
         {"role": "assistant", "content": reply}
