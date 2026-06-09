@@ -10,6 +10,7 @@ st.set_page_config(
 from modules.module1_map import render_map
 from modules.module3_filter import render_filter
 from modules.module5_funfacts import render_funfacts
+from modules.module6_ai_guide import render_ai_guide
 
 st.markdown("""
 <style>
@@ -23,6 +24,7 @@ PAGES = [
     "🗺️ 世界多样性地图",
     " 🔍 筛选 & 探索",
     "💡 科普趣味卡片",
+    "🤖 AI 讲解员",
 ]
 
 # 支持从地图页跳转到详情页
@@ -51,3 +53,5 @@ elif page == " 🔍 筛选 & 探索":
     render_filter()
 elif page == "💡 科普趣味卡片":
     render_funfacts()
+elif page == "🤖 AI 讲解员":
+    render_ai_guide()
