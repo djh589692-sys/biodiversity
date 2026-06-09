@@ -48,6 +48,6 @@ Thumbs.db
 htmlcov/
 
 # Data
-data/
+
 *.csv
 *.json
