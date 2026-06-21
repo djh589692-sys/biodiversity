@@ -9,8 +9,8 @@ st.set_page_config(
 
 from modules.module1_map import render_map
 from modules.module3_filter import render_filter
-from modules.module5_funfacts import render_funfacts
-from modules.module6_ai_guide import render_ai_guide
+from modules.module4_funfacts import render_funfacts
+from modules.module5_ai_guide import render_ai_guide
 
 st.markdown("""
 <style>
